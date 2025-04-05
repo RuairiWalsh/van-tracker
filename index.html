@@ -5,34 +5,91 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        #map { height: 50vh; }
-        #controls { padding: 10px; }
-        #status { margin: 10px 0; }
-        .stop-marker { background-color: red; border-radius: 50%; }
-        button { padding: 8px 16px; margin: 5px; }
-        #dataOutput { width: 100%; height: 100px; margin-top: 10px; }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        #map {
+            height: 50vh;
+            max-width: 600px;
+            margin: 0 auto 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        #controls {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        #status, #timer {
+            margin: 15px 0;
+            font-size: 18px;
+            color: #7f8c8d;
+        }
+        #timer {
+            font-weight: bold;
+            color: #e74c3c;
+        }
+        .stop-marker {
+            background-color: red;
+            border-radius: 50%;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="controls">
-        <button onclick="startTracking()">Start Tracking</button>
-        <button onclick="stopTracking()">Stop Tracking</button>
-        <button onclick="clearData()">Clear Data</button>
+        <h1>Van Tracker</h1>
+        <button onclick="startTracking()" id="startBtn">Start Tracking</button>
+        <button onclick="stopTracking()" id="stopBtn" disabled>Stop Tracking</button>
+        <button onclick="downloadData()" id="downloadBtn">Download Data</button>
         <div id="status">Status: Not tracking</div>
-        <div>Total Stops: <span id="stopCount">0</span></div>
-        <div>Total Stop Time: <span id="stopTime">0</span> minutes</div>
-        <h3>Data Log (Copy and Send to Manager if Requested):</h3>
-        <textarea id="dataOutput" readonly></textarea>
+        <div id="timer">Time: 00:00:00</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let map, route, watchId, lastPosition, stopCount = 0, totalStopTime = 0;
+        let map, route, watchId, lastPosition, timerInterval;
         let trackingData = localStorage.getItem('trackingData') 
             ? localStorage.getItem('trackingData').split('\n') 
             : ['Timestamp,Latitude,Longitude,Speed(km/h)'];
+        let startTime;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const status = document.getElementById('status');
+        const timer = document.getElementById('timer');
 
         // Initialize map
         map = L.map('map').setView([51.505, -0.09], 13);
@@ -41,18 +98,40 @@
         }).addTo(map);
         route = L.polyline([], {color: 'blue'}).addTo(map);
 
-        // Load initial data
-        document.getElementById('dataOutput').value = trackingData.join('\n');
-
         function startTracking() {
             if (!navigator.geolocation) {
                 alert('Geolocation is not supported by your browser');
                 return;
             }
 
-            document.getElementById('status').textContent = 'Status: Tracking...';
-            
-            watchId = navigator.geolocation.watchPosition(
+            status.textContent = 'Status: Tracking...';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            downloadBtn.disabled = false;
+            startTime = Date.now();
+
+            // Start timer
+            timerInterval = setInterval(updateTimer, 1000);
+
+            // Log location every 2 minutes
+            logLocation(); // Log immediately
+            watchId = setInterval(logLocation, 2 * 60 * 1000); // Every 2 minutes
+        }
+
+        function stopTracking() {
+            if (watchId) {
+                clearInterval(watchId);
+                clearInterval(timerInterval);
+                watchId = null;
+                status.textContent = 'Status: Stopped';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                timer.textContent = 'Time: 00:00:00';
+            }
+        }
+
+        function logLocation() {
+            navigator.geolocation.getCurrentPosition(
                 position => {
                     const { latitude, longitude, timestamp, speed } = position.coords;
                     const currentSpeed = speed ? speed * 3.6 : 0; // Convert m/s to km/h
@@ -63,37 +142,26 @@
                         speed: currentSpeed
                     };
 
-                    // Add to tracking data
+                    // Store data
                     trackingData.push(`${point.timestamp},${point.lat},${point.lng},${point.speed}`);
                     localStorage.setItem('trackingData', trackingData.join('\n'));
-                    document.getElementById('dataOutput').value = trackingData.join('\n');
 
                     // Update map
                     route.addLatLng([latitude, longitude]);
                     map.panTo([latitude, longitude]);
 
-                    // Detect stops
+                    // Mark stops
                     if (currentSpeed < 5) {
-                        if (lastPosition && lastPosition.speed >= 5) {
-                            stopCount++;
-                            L.marker([latitude, longitude], {
-                                icon: L.divIcon({
-                                    className: 'stop-marker',
-                                    html: '<div style="width:10px;height:10px;"></div>'
-                                })
-                            }).addTo(map);
-                        }
-                        if (lastPosition && lastPosition.speed < 5) {
-                            const timeDiff = (timestamp - new Date(lastPosition.timestamp)) / 60000;
-                            totalStopTime += timeDiff;
-                        }
+                        L.marker([latitude, longitude], {
+                            icon: L.divIcon({
+                                className: 'stop-marker',
+                                html: '<div style="width:10px;height:10px;"></div>'
+                            })
+                        }).addTo(map);
                     }
-
-                    lastPosition = point;
-                    updateStats();
                 },
                 error => {
-                    document.getElementById('status').textContent = `Error: ${error.message}`;
+                    console.error('Geolocation error:', error.message);
                 },
                 {
                     enableHighAccuracy: true,
@@ -103,29 +171,26 @@
             );
         }
 
-        function stopTracking() {
-            if (watchId) {
-                navigator.geolocation.clearWatch(watchId);
-                document.getElementById('status').textContent = 'Status: Stopped';
-                watchId = null;
-            }
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const hours = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+            const seconds = String(elapsed % 60).padStart(2, '0');
+            timer.textContent = `Time: ${hours}:${minutes}:${seconds}`;
         }
 
-        function clearData() {
-            trackingData = ['Timestamp,Latitude,Longitude,Speed(km/h)'];
-            localStorage.setItem('trackingData', trackingData.join('\n'));
-            document.getElementById('dataOutput').value = trackingData.join('\n');
-            route.setLatLngs([]);
-            stopCount = 0;
-            totalStopTime = 0;
-            updateStats();
+        function downloadData() {
+            const csvContent = "data:text/csv;charset=utf-8," + trackingData.join('\n');
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `van_track_${new Date().toISOString()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
-        function updateStats() {
-            document.getElementById('stopCount').textContent = stopCount;
-            document.getElementById('stopTime').textContent = Math.round(totalStopTime);
-        }
-
+        // Set initial map position
         window.onload = () => {
             navigator.geolocation.getCurrentPosition(
                 pos => map.setView([pos.coords.latitude, pos.coords.longitude], 13),
