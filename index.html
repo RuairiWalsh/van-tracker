@@ -62,6 +62,7 @@
         }
         #debug {
             color: #27ae60;
+            word-wrap: break-word;
         }
         .stop-marker {
             background-color: red;
@@ -87,7 +88,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let map, route, currentMarker, watchId, lastPosition, timerInterval;
+        let map, route, currentMarker, watchId, timerInterval;
         let trackingData = localStorage.getItem('trackingData') 
             ? localStorage.getItem('trackingData').split('\n') 
             : ['Timestamp,Latitude,Longitude,Speed(km/h)'];
@@ -123,7 +124,7 @@
             // Start timer
             timerInterval = setInterval(updateTimer, 1000);
 
-            // Log location every 2 minutes (immediate log for testing)
+            // Log location every 2 minutes
             logLocation(); // Log immediately
             watchId = setInterval(logLocation, 2 * 60 * 1000); // Every 2 minutes
         }
@@ -158,7 +159,7 @@
 
                     // Update map
                     route.addLatLng([latitude, longitude]);
-                    map.panTo([latitude, longitude]);
+                    map.setView([latitude, longitude], 13); // Center on current position
 
                     // Update current position marker
                     if (currentMarker) map.removeLayer(currentMarker);
@@ -183,12 +184,12 @@
                     debug.textContent = `Debug: Logged - ${point.timestamp}, Lat: ${point.lat}, Lng: ${point.lng}`;
                 },
                 error => {
-                    debug.textContent = `Debug: Error - ${error.message}`;
-                    console.error('Geolocation error:', error.message);
+                    debug.textContent = `Debug: Error - Code: ${error.code}, Message: ${error.message}`;
+                    console.error('Geolocation error:', error);
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: 10000, // Increased timeout for reliability
+                    timeout: 10000,
                     maximumAge: 0
                 }
             );
