@@ -124,9 +124,9 @@
             // Start timer
             timerInterval = setInterval(updateTimer, 1000);
 
-            // Log location every 2 minutes
-            logLocation(); // Log immediately
-            watchId = setInterval(logLocation, 2 * 60 * 1000); // Every 2 minutes
+            // Log location immediately and every 1 minute
+            logLocation(); // Immediate log
+            watchId = setInterval(logLocation, 1 * 60 * 1000); // Every 1 minute
         }
 
         function stopTracking() {
@@ -159,7 +159,7 @@
 
                     // Update map
                     route.addLatLng([latitude, longitude]);
-                    map.setView([latitude, longitude], 13); // Center on current position
+                    map.setView([latitude, longitude], 15); // Zoom in closer to show exact position
 
                     // Update current position marker
                     if (currentMarker) map.removeLayer(currentMarker);
@@ -189,7 +189,7 @@
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: 10000,
+                    timeout: 15000, // Increased timeout for reliability
                     maximumAge: 0
                 }
             );
@@ -224,6 +224,10 @@
                 () => {
                     debug.textContent = 'Debug: Initial position not available';
                     console.log('Initial position not available');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000
                 }
             );
         };
