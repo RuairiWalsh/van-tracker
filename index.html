@@ -51,7 +51,7 @@
             background-color: #bdc3c7;
             cursor: not-allowed;
         }
-        #status, #timer {
+        #status, #timer, #debug {
             margin: 15px 0;
             font-size: 18px;
             color: #7f8c8d;
@@ -60,8 +60,15 @@
             font-weight: bold;
             color: #e74c3c;
         }
+        #debug {
+            color: #27ae60;
+        }
         .stop-marker {
             background-color: red;
+            border-radius: 50%;
+        }
+        .current-position {
+            background-color: green;
             border-radius: 50%;
         }
     </style>
@@ -75,11 +82,12 @@
         <button onclick="downloadData()" id="downloadBtn">Download Data</button>
         <div id="status">Status: Not tracking</div>
         <div id="timer">Time: 00:00:00</div>
+        <div id="debug">Debug: Waiting for data...</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let map, route, watchId, lastPosition, timerInterval;
+        let map, route, currentMarker, watchId, lastPosition, timerInterval;
         let trackingData = localStorage.getItem('trackingData') 
             ? localStorage.getItem('trackingData').split('\n') 
             : ['Timestamp,Latitude,Longitude,Speed(km/h)'];
@@ -90,6 +98,7 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const status = document.getElementById('status');
         const timer = document.getElementById('timer');
+        const debug = document.getElementById('debug');
 
         // Initialize map
         map = L.map('map').setView([51.505, -0.09], 13);
@@ -101,6 +110,7 @@
         function startTracking() {
             if (!navigator.geolocation) {
                 alert('Geolocation is not supported by your browser');
+                debug.textContent = 'Debug: Geolocation not supported';
                 return;
             }
 
@@ -113,7 +123,7 @@
             // Start timer
             timerInterval = setInterval(updateTimer, 1000);
 
-            // Log location every 2 minutes
+            // Log location every 2 minutes (immediate log for testing)
             logLocation(); // Log immediately
             watchId = setInterval(logLocation, 2 * 60 * 1000); // Every 2 minutes
         }
@@ -150,6 +160,15 @@
                     route.addLatLng([latitude, longitude]);
                     map.panTo([latitude, longitude]);
 
+                    // Update current position marker
+                    if (currentMarker) map.removeLayer(currentMarker);
+                    currentMarker = L.marker([latitude, longitude], {
+                        icon: L.divIcon({
+                            className: 'current-position',
+                            html: '<div style="width:12px;height:12px;"></div>'
+                        })
+                    }).addTo(map);
+
                     // Mark stops
                     if (currentSpeed < 5) {
                         L.marker([latitude, longitude], {
@@ -159,13 +178,17 @@
                             })
                         }).addTo(map);
                     }
+
+                    // Debug feedback
+                    debug.textContent = `Debug: Logged - ${point.timestamp}, Lat: ${point.lat}, Lng: ${point.lng}`;
                 },
                 error => {
+                    debug.textContent = `Debug: Error - ${error.message}`;
                     console.error('Geolocation error:', error.message);
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: 5000,
+                    timeout: 10000, // Increased timeout for reliability
                     maximumAge: 0
                 }
             );
@@ -193,8 +216,14 @@
         // Set initial map position
         window.onload = () => {
             navigator.geolocation.getCurrentPosition(
-                pos => map.setView([pos.coords.latitude, pos.coords.longitude], 13),
-                () => console.log('Initial position not available')
+                pos => {
+                    map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+                    debug.textContent = 'Debug: Initial position set';
+                },
+                () => {
+                    debug.textContent = 'Debug: Initial position not available';
+                    console.log('Initial position not available');
+                }
             );
         };
     </script>
