@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Van Tracker - Driver</title>
+    <title>Simple Tracker - Driver</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
     <style>
         body {
             margin: 0;
             padding: 20px;
-            font-family: Arial, sans-serif;
+            font-family: 'Poppins', sans-serif;
             background-color: #f4f4f9;
             color: #333;
         }
@@ -29,9 +30,11 @@
             text-align: center;
         }
         h1 {
-            font-size: 24px;
+            font-size: 32px;
             margin-bottom: 20px;
             color: #2c3e50;
+            text-align: center;
+            font-weight: 600;
         }
         button {
             padding: 10px 20px;
@@ -85,12 +88,18 @@
     </style>
 </head>
 <body>
+    <h1>Free Tracker</h1>
     <div id="map"></div>
     <div id="controls">
-        <h1>Bottle Van Locator</h1>
+        <p>Location services must be turned on.</p>
+        <p>Locations are plotted immediately upon starting and every 1 minute thereafter.</p>
+        <p>Locations are stored in a downloadable CSV file.</p>
+        <p>The CSV file can be downloaded after clicking stop tracking.</p>
+        <p>After downloading the file, you can click the Plotter button below, upload the file, and view a map of the routes taken.</p>
         <button onclick="startTracking()" id="startBtn">Start Tracking</button>
         <button onclick="stopTracking()" id="stopBtn" disabled>Stop Tracking</button>
-        <button onclick="downloadData()" id="downloadBtn">Download Data</button>
+        <button onclick="downloadData()" id="downloadBtn" disabled>Download Data</button>
+        <button onclick="window.location.href='https://bottlesandcases.com'">Plotter</button>
         <div id="status">Status: Not tracking</div>
         <div id="timer">Time: 00:00:00</div>
         <div id="debug">Debug: Waiting for data...</div>
@@ -99,10 +108,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         let map, route, currentMarker, watchId, timerInterval;
-        let trackingData = localStorage.getItem('trackingData') 
-            ? localStorage.getItem('trackingData').split('\n') 
-            : ['Timestamp,Latitude,Longitude,Speed(km/h)'];
-        let startTime;
+        let trackingData = ['Date,Time,Latitude,Longitude'];
+        let startDateTime, endDateTime, startTime;
 
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
@@ -125,10 +132,14 @@
                 return;
             }
 
+            trackingData = ['Date,Time,Latitude,Longitude'];
+            localStorage.setItem('trackingData', trackingData.join('\n'));
+
             status.textContent = 'Status: Tracking...';
             startBtn.disabled = true;
             stopBtn.disabled = false;
-            downloadBtn.disabled = false;
+            downloadBtn.disabled = true;
+            startDateTime = new Date();
             startTime = Date.now();
 
             // Start timer
@@ -147,7 +158,9 @@
                 status.textContent = 'Status: Stopped';
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
+                downloadBtn.disabled = false;
                 timer.textContent = 'Time: 00:00:00';
+                endDateTime = new Date();
             }
         }
 
@@ -155,17 +168,18 @@
             navigator.geolocation.getCurrentPosition(
                 position => {
                     const { latitude, longitude, speed } = position.coords;
-                    const timestamp = position.timestamp; // Fixed: Get timestamp from position, not coords
-                    const currentSpeed = speed ? speed * 3.6 : 0; // Convert m/s to km/h
+                    const timestamp = position.timestamp;
+                    const currentSpeed = speed ? speed * 3.6 : 0;
                     const point = {
                         lat: latitude,
                         lng: longitude,
-                        timestamp: new Date(timestamp).toISOString(),
-                        speed: currentSpeed
+                        timestamp: new Date(timestamp).toISOString()
                     };
+                    const date = point.timestamp.split('T')[0];
+                    const time = point.timestamp.split('T')[1].split('.')[0];
 
                     // Store data
-                    trackingData.push(`${point.timestamp},${point.lat},${point.lng},${point.speed}`);
+                    trackingData.push(`${date},${time},${point.lat},${point.lng}`);
                     localStorage.setItem('trackingData', trackingData.join('\n'));
 
                     // Update map
@@ -216,12 +230,30 @@
             timer.textContent = `Time: ${hours}:${minutes}:${seconds}`;
         }
 
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function formatTime(date) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${hours}-${minutes}-${seconds}`;
+        }
+
         function downloadData() {
             const csvContent = "data:text/csv;charset=utf-8," + trackingData.join('\n');
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement('a');
+            const todaysDate = formatDate(startDateTime);
+            const startTimeStr = formatTime(startDateTime);
+            const endTimeStr = formatTime(endDateTime);
+            const filename = `${todaysDate} - ${startTimeStr} to ${endTimeStr}.csv`;
             link.setAttribute('href', encodedUri);
-            link.setAttribute('download', `van_track_${new Date().toISOString()}.csv`);
+            link.setAttribute('download', filename);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
