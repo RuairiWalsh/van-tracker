@@ -125,7 +125,7 @@
     </div>
     <div id="controls">
         <p>Location services must be turned on.</p>
-        <p>Locations are plotted immediately upon starting and every 1 minute thereafter.</p>
+        <p>Locations are plotted immediately upon starting and every 20 seconds thereafter.</p>
         <p>Locations are stored in a downloadable CSV file.</p>
         <p>The CSV file can be downloaded after clicking stop tracking.</p>
         <p>After downloading the file, you can click the Plotter button below, upload the file, and view a map of the routes taken.</p>
@@ -189,9 +189,9 @@
             // Start timer
             timerInterval = setInterval(updateTimer, 1000);
 
-            // Log location immediately and every 1 minute
+            // Log location immediately and every 20 seconds
             logLocation(); // Immediate log
-            watchId = setInterval(logLocation, 1 * 60 * 1000); // Every 1 minute
+            watchId = setInterval(logLocation, 20 * 1000); // Every 20 seconds
         }
 
         function stopTracking() {
